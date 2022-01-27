@@ -86,7 +86,37 @@ export const Navbar = ({ children }: { children?: ReactNode }) => {
                       pathname === '/mint' && 'text-primary-700 bg-gray-100'
                     }`}
                   >
-                    Mint
+                    Issue/Mint/transfer token
+                  </a>
+                </Link>
+
+                <Link href="/createmock">
+                  <a
+                    className={`px-3 py-2 mr-4 text-sm font-semibold text-gray-700 rounded-md hover:text-primary-700 hover:bg-gray-100 focus:outline-none focus:text-primary-700 focus:bg-gray-100 ${
+                      pathname === '/createmock' && 'text-primary-700 bg-gray-100'
+                    }`}
+                  >
+                    Create w/ mocked values
+                  </a>
+                </Link>
+
+                <Link href="/updatemock">
+                  <a
+                    className={`px-3 py-2 mr-4 text-sm font-semibold text-gray-700 rounded-md hover:text-primary-700 hover:bg-gray-100 focus:outline-none focus:text-primary-700 focus:bg-gray-100 ${
+                      pathname === '/updatemock' && 'text-primary-700 bg-gray-100'
+                    }`}
+                  >
+                    Update w/ mocked values
+                  </a>
+                </Link>
+
+                <Link href="/mintmock">
+                  <a
+                    className={`px-3 py-2 mr-4 text-sm font-semibold text-gray-700 rounded-md hover:text-primary-700 hover:bg-gray-100 focus:outline-none focus:text-primary-700 focus:bg-gray-100 ${
+                      pathname === '/mintmock' && 'text-primary-700 bg-gray-100'
+                    }`}
+                  >
+                    Mint w/ mocked values
                   </a>
                 </Link>
               </div>

@@ -13,8 +13,7 @@ export const deployUniversalProfile = async (
   console.log(account.address)
   const deployedContracts = await lspFactory.LSP3UniversalProfile.deploy({
     controllingAccounts: [account.address],
-    lsp3Profile: profile as ProfileDataBeforeUpload,
-
+    lsp3Profile: profile as ProfileDataBeforeUpload
   })
 
   console.log(deployedContracts)

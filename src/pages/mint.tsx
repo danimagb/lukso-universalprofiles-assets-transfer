@@ -5,117 +5,129 @@ import { useToast } from 'utils/useToast'
 import Layout from 'components/Layout'
 import Navbar from 'components/Navbar'
 import { NextPage } from 'next'
-import { LSPFactory } from '@lukso/lsp-factory.js';
-import { fetchAllERC725Data } from 'utils/lukso/profile'
 import { useState } from 'react'
-import { tokenIdAsBytes32 } from "../utils/tokens";
+import { tokenIdAsBytes32 } from '../utils/tokens'
 import { createContractsInstance } from '../utils/lukso/profile'
-
-import LSP8IdentifiableDigitalAsset from '@lukso/universalprofile-smart-contracts/artifacts/LSP8IdentifiableDigitalAsset.json';
-import LSP8Mintable from '@lukso/universalprofile-smart-contracts/artifacts/LSP8Mintable.json';
-import LSP7Mintable from '@lukso/universalprofile-smart-contracts/artifacts/LSP7Mintable.json';
-
-
+import { hasPermission } from 'utils/lukso'
+import LSP8Mintable from '@lukso/universalprofile-smart-contracts/artifacts/LSP8Mintable.json'
 
 const MintPage: NextPage = () => {
-  const { account, balance } = useWeb3()
+  const { account } = useWeb3()
   const [ownerUPAddress, setUPFromAddress] = useState<string>('')
   const [recipientUPAddress, setUPToAddress] = useState<string>('')
+  const [tokenName, setTokenName] = useState<string>('')
+  const [tokenSymbol, setTokenSymbol] = useState<string>('')
   const { addToast } = useToast()
   const { web3Info } = useWeb3()
   const [isLoading, setIsLoading] = useState(false)
 
-  
-
   const mintAssetLSP8 = async () => {
     setIsLoading(true)
     try {
-      const metamaskAccountAddress = "0xbA125C184Ce41238a6EE88A3080d388Eb87501Fd";
+      const hasPermissions = await hasPermission(ownerUPAddress, account.address, web3Info)
 
-      console.log(recipientUPAddress);
-      const universalProfileData = await fetchAllERC725Data(recipientUPAddress)
-      console.log(universalProfileData);
+      if (!hasPermissions) {
+        addToast({
+          title: 'No permissions to control the profile',
+          description:
+            'The current account does not have permissions to control the profile set in "From" field',
+          type: 'warning',
+          autoClose: true
+        })
+      }
 
       const tokenParams = [
-        'FFNFT', // token name
-        'FFF', // token symbol
-        metamaskAccountAddress, // new owner
-      ];
+        tokenName, // token name
+        tokenSymbol, // token symbol
+        account.address // new owner
+      ]
 
+      // Step 1 - Created an instance of the LSP8 contract
       const tokenInstance = new web3Info.eth.Contract(LSP8Mintable.abi as any, undefined, {
         gas: 5_000_000,
-        gasPrice: '1000000000',
-      });
+        gasPrice: '1000000000'
+      })
 
-      console.log("Contract Instance created")
+      console.log('Contract Instance created')
 
+      // Step 2 - Deploy the token contract
       const deployedContract = await tokenInstance
-      .deploy({ data: LSP8Mintable.bytecode, arguments: tokenParams })
-      .send({ from: metamaskAccountAddress});
+        .deploy({ data: LSP8Mintable.bytecode, arguments: tokenParams })
+        .send({ from: account.address })
 
-      console.log("Contract deployed")
+      console.log('Contract deployed')
       console.log(deployedContract)
 
-      const ownerBalanceBeforeMint = await deployedContract.methods.balanceOf(ownerUPAddress).call();
-      const recipientBalanceBeforeTransfer = await deployedContract.methods.balanceOf(recipientUPAddress).call();
+      const ownerBalanceBeforeMint = await deployedContract.methods.balanceOf(ownerUPAddress).call()
+      const recipientBalanceBeforeTransfer = await deployedContract.methods
+        .balanceOf(recipientUPAddress)
+        .call()
 
-      console.log("Owner balance before mint:", ownerBalanceBeforeMint)
-      console.log("Recipient balance before mint:", recipientBalanceBeforeTransfer)
+      console.log('Owner balance before mint:', ownerBalanceBeforeMint)
+      console.log('Recipient balance before mint:', recipientBalanceBeforeTransfer)
 
+      // Step 3 - Mint one token to the ownerUpAddress
       const mintedToken = await deployedContract.methods
-      .mint(ownerUPAddress, tokenIdAsBytes32(10), true, "0x")
-      .send({ from: metamaskAccountAddress});
+        .mint(ownerUPAddress, tokenIdAsBytes32(10), true, '0x')
+        .send({ from: account.address })
 
-      console.log("Token Minted")
-      console.log(mintedToken);
+      console.log('Token Minted')
+      console.log(mintedToken)
 
       const totalSupply = await deployedContract.methods.totalSupply().call()
-      const ownerBalanceAfterMint = await deployedContract.methods.balanceOf(ownerUPAddress).call();
-      const recipientBalanceAfterMint = await deployedContract.methods.balanceOf(recipientUPAddress).call();
+      const ownerBalanceAfterMint = await deployedContract.methods.balanceOf(ownerUPAddress).call()
+      const recipientBalanceAfterMint = await deployedContract.methods
+        .balanceOf(recipientUPAddress)
+        .call()
 
-      console.log("Total supply of tokens:", totalSupply)
+      console.log('Total supply of tokens:', totalSupply)
 
-      console.log("Owner Balance after mint:", ownerBalanceAfterMint)
-      console.log("Recipient Balance after mint:", recipientBalanceAfterMint)
+      console.log('Owner Balance after mint:', ownerBalanceAfterMint)
+      console.log('Recipient Balance after mint:', recipientBalanceAfterMint)
 
-      const tokenPayload = deployedContract.methods
-      .transfer(ownerUPAddress, recipientUPAddress, tokenIdAsBytes32(10), false, '0x')
-      .encodeABI();
-
+      // Step 4 - Execute the transfer from ownerUPAddress to recipientUPAddress using the keymanager
       const { profileContract, keyManagerContract } = await createContractsInstance(
         ownerUPAddress,
         web3Info
       )
 
+      const tokenPayload = deployedContract.methods
+        .transfer(ownerUPAddress, recipientUPAddress, tokenIdAsBytes32(10), false, '0x')
+        .encodeABI()
+
       const upPayload = profileContract.methods
-      .execute(0, deployedContract["_address"], 0, tokenPayload)
-      .encodeABI();
+        .execute(0, deployedContract['_address'], 0, tokenPayload)
+        .encodeABI()
 
       await keyManagerContract.methods.execute(upPayload).send({
-        from: metamaskAccountAddress,
+        from: account.address,
         gas: 5_000_000,
-        gasPrice: '1000000000',
-      });
+        gasPrice: '1000000000'
+      })
 
-      console.log("Token Transferred")
-      console.log(mintedToken);
-     
-      const ownerBalanceAfterTransfer = await deployedContract.methods.balanceOf(ownerUPAddress).call();
-      const recipientBalanceAfterTransfer = await deployedContract.methods.balanceOf(recipientUPAddress).call();
+      console.log('Token Transferred')
+      console.log(mintedToken)
 
-      console.log("Owner balance after transfer:", ownerBalanceAfterTransfer)
-      console.log("Recipient balance after transfer:", recipientBalanceAfterTransfer)
+      const ownerBalanceAfterTransfer = await deployedContract.methods
+        .balanceOf(ownerUPAddress)
+        .call()
+      const recipientBalanceAfterTransfer = await deployedContract.methods
+        .balanceOf(recipientUPAddress)
+        .call()
+
+      console.log('Owner balance after transfer:', ownerBalanceAfterTransfer)
+      console.log('Recipient balance after transfer:', recipientBalanceAfterTransfer)
 
       addToast({
-        title: 'Asset deployed',
-        description: 'A new asset was created and associated with your UP',
+        title: 'Asset created and transferred',
+        description: 'A new asset was created and transferred to the given Universal profile',
         type: 'success',
         autoClose: true
       })
     } catch (error) {
       addToast({
-        title: 'Could not create a new Asset',
-        description: 'Failed while minting/transfering asset',
+        title: 'Could not create/tranfer asset',
+        description: 'An error occurred while creating, minting or transfering asset',
         type: 'error',
         autoClose: true
       })
@@ -124,161 +136,40 @@ const MintPage: NextPage = () => {
       setIsLoading(false)
     }
   }
-
-  const mintAssetLSP7 = async () => {
-    setIsLoading(true)
-    try {
-      const metamaskAccountAddress = "0xbA125C184Ce41238a6EE88A3080d388Eb87501Fd";
-
-      console.log(recipientUPAddress);
-      const universalProfileData = await fetchAllERC725Data(recipientUPAddress)
-      console.log(universalProfileData);
-
-      const tokenParams = [
-        'FFNFT', // token name
-        'FF', // token symbol
-        metamaskAccountAddress, // new owner
-        true
-      ];
-
-      const tokenInstance = new web3Info.eth.Contract(LSP7Mintable.abi as any, undefined, {
-        gas: 5_000_000,
-        gasPrice: '1000000000',
-      });
-
-      console.log("Contract Instance created")
-
-      const deployedContract = await tokenInstance
-      .deploy({ data: LSP7Mintable.bytecode, arguments: tokenParams })
-      .send({ from: metamaskAccountAddress});
-
-      console.log("Contract deployed")
-      console.log(deployedContract)
-
-
-      const mintedToken = await deployedContract.methods
-      .mint(metamaskAccountAddress, 1, true, "0x")
-      .send({ from: metamaskAccountAddress});
-
-      console.log("Token Minted")
-      console.log(mintedToken);
-
-
-      const totalSupply = await deployedContract.methods.totalSupply().call()
-      const balance = await deployedContract.methods.balanceOf(metamaskAccountAddress).call();
-
-      console.log("Total supply:", totalSupply)
-      console.log("Balance:", balance)
-
-
-      await deployedContract.methods
-      .transfer(metamaskAccountAddress, recipientUPAddress, 1, true, "0x")
-      .send({ from: metamaskAccountAddress});
-      
-      console.log("Token Transferred")
-      console.log(mintedToken);
-
-      addToast({
-        title: 'Asset deployed',
-        description: 'A new asset was created and associated with your UP',
-        type: 'success',
-        autoClose: true
-      })
-    } catch (error) {
-      addToast({
-        title: 'Could not create a new Asset',
-        description: 'Failed while minting/transfering asset',
-        type: 'error',
-        autoClose: true
-      })
-      console.log(error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const mintAssetFactoryLSP8 = async () => {
-    setIsLoading(true)
-    try {
-      const metamaskAccountAddress = "0xbA125C184Ce41238a6EE88A3080d388Eb87501Fd";
-      
-      const lspFactory = new LSPFactory('https://rpc.l14.lukso.network', {
-        deployKey: account.privateKey,
-        chainId: 22
-      })
-
-      console.log("Lsp factory created")
-      console.log(lspFactory)
-
-      const myDigitalAsset = await lspFactory.DigitalAsset.deployLSP8IdentifiableDigitalAsset({
-        name: "LSPNFT",
-        symbol: "LXYNFT",
-        ownerAddress: metamaskAccountAddress, // Account which will own the Token Contract
-      })
-
-      console.log("LSP8 Digital Asset deployed")
-      console.log(myDigitalAsset)
-
-      const myNFT = new web3Info.eth.Contract(
-        LSP8IdentifiableDigitalAsset.abi as any,
-        myDigitalAsset.LSP8IdentifiableDigitalAsset.address,
-        {
-        gas: 5_000_000,
-        gasPrice: '1000000000',
-        }
-      );
-
-      console.log("LSP8 Digital Asset contract instance created")
-      console.log(myNFT)
-
-      const totalSupply = await myNFT.methods.totalSupply().call();
-
-      console.log(totalSupply)
-
-      const mintedNFT = await myNFT.methods.mint(recipientUPAddress, tokenIdAsBytes32(1), false, "0x")
-      .send({ from: metamaskAccountAddress});
-
-      console.log("LSP8 Digital Asset minted")
-      console.log(mintedNFT)
-
-      addToast({
-        title: 'Asset deployed',
-        description: 'A new asset was created and associated with your UP',
-        type: 'success',
-        autoClose: true
-      })
-    } catch (error) {
-      addToast({
-        title: 'Could not create a new Asset',
-        description: 'Failed while minting/transfering asset',
-        type: 'error',
-        autoClose: true
-      })
-      console.log(error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
 
   return (
-    <Layout title="Fetch Profile | Lukso Starter Kit">
+    <Layout title="Mint/transfer token | Lukso Starter Kit">
       <Navbar />
       <div className="min-h-screen p-4 my-12">
         <div className="max-w-sm p-6 mx-auto bg-white rounded-md shadow-xl">
-        <div className="mt-3 text-center">
+          <div className="mt-3 text-center">
             <h3 className="text-lg font-medium leading-6 text-gray-900">
-             Mint token using LSP8
+              Issue, Mint and transfer token using LSP8
             </h3>
-            <div className="mt-2">
-              <p className="text-sm text-gray-500">
-                Enter a contract address of a Universal Profile
-              </p>
-            </div>
           </div>
           <div className="my-3">
             <label htmlFor="name" className="block text-sm font-medium leading-5 text-gray-700">
-                From
+              Token Name
+            </label>
+            <TextInput
+              name="token_name"
+              placeholder="MY Sweet NFT"
+              onChange={(e) => setTokenName(e.currentTarget.value)}
+            />
+          </div>
+          <div className="my-3">
+            <label htmlFor="name" className="block text-sm font-medium leading-5 text-gray-700">
+              Token symbol
+            </label>
+            <TextInput
+              name="token_symbol"
+              placeholder="NFT"
+              onChange={(e) => setTokenSymbol(e.currentTarget.value)}
+            />
+          </div>
+          <div className="my-3">
+            <label htmlFor="name" className="block text-sm font-medium leading-5 text-gray-700">
+              From
             </label>
             <TextInput
               name="up_from_contract_address"
@@ -288,7 +179,7 @@ const MintPage: NextPage = () => {
           </div>
           <div className="my-3">
             <label htmlFor="name" className="block text-sm font-medium leading-5 text-gray-700">
-                To
+              To
             </label>
             <TextInput
               name="up_to_contract_address"
@@ -303,7 +194,7 @@ const MintPage: NextPage = () => {
               onClick={mintAssetLSP8}
               isLoading={isLoading}
             >
-              Deploy Asset
+              Execute
             </Button>
           </div>
         </div>

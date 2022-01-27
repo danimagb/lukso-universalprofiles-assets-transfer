@@ -28,8 +28,10 @@ const FetchProfilePage: NextPage = () => {
     setIsLoading(true)
     try {
       const response = await fetchERC725Data(contractAddress)
+
       setProfile({ ...response.LSP3Profile.LSP3Profile, address: contractAddress })
       setURDAddress(response.LSP1UniversalReceiverDelegate)
+
       addToast({
         title: 'Universal Profile Found',
         description: 'Look at that beauty!',

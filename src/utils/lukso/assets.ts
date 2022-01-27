@@ -7,7 +7,7 @@ import { getInstance } from '.'
 
 export const getAssetsFromProfile = async (URDAddress: string, web3: Web3) => {
   const tokenAddresses = await getTokenAddresses(URDAddress, web3)
-  console.log("Tokens in UP")
+  console.log('Tokens in UP')
   console.log(tokenAddresses)
   let digitalAssets: any[] = []
   if (tokenAddresses?.length) {
@@ -55,7 +55,7 @@ const getTokenAddresses = async (URDAddress: string, web3: Web3) => {
         type: 'function'
       }
     ]
-    console.log(URDAddress);
+    console.log(URDAddress)
     const addressStore = new web3.eth.Contract(abi, URDAddress)
     console.log(addressStore)
     const tokenAddresses = await addressStore.methods.getAllRawValues().call()
